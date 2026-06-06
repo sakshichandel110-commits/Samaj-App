@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Google OAuth2 Authorization Code Flow - Test</title>
+  <style>
+    /* Simple, clean styling */
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:#f7fafc; color:#111827; padding:24px; }
+    .card { max-width:720px; margin:20px auto; background:#fff; border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.08); padding:24px; }
+    h1 { margin:0 0 8px; font-size:20px; }
+    p { margin:0 0 16px; color:#4b5563; }
+    .btn { display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:6px; cursor:pointer; border:none; font-weight:600; }
+    .google { background: #fff; border:1px solid #e5e7eb; color:#111827; }
+    .copy { background:#111827; color:#fff; }
+    #codeDisplay { margin-top:16px; padding:12px; background:#f3f4f6; border-radius:6px; font-family:monospace; word-break:break-all; }
+    .hint { margin-top:8px; color:#6b7280; font-size:13px; }
+    footer { margin-top:18px; font-size:13px; color:#6b7280; }
+    pre { background:#111827; color:#fff; padding:12px; border-radius:6px; overflow:auto; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Google OAuth2 Authorization Code Flow — Test</h1>
+    <p>Click the button to open Google's consent screen. After granting access, Google will redirect to <code>http://127.0.0.1:8000/google-callback</code> and this page will capture and display the authorization code.</p>
+
+    <!-- Replace CLIENT_ID and REDIRECT_URI as needed -->
+    <button id="loginBtn" class="btn google">Login with Google</button>
+    <button id="copyBtn" class="btn copy" style="margin-left:8px;" disabled>Copy Code</button>
+
+    <div id="status" class="hint">Status: idle</div>
+    <div id="codeDisplay" aria-live="polite">No code yet.</div>
+
+    <footer>
+      <strong>Notes:</strong> This page must be served from <code>http://127.0.0.1:8000</code> (same origin) for the popup polling to read the redirect location. Place it in your Laravel `public/` folder or serve via `php artisan serve --host=127.0.0.1 --port=8000`.
+    </footer>
+
+    <h2 style="margin-top:18px">How this works (comments)</h2>
+    <ol>
+      <li><strong>OAuth URL generation</strong>: The JS builds the authorization URL with <code>response_type=code</code>, your client id, the redirect URI, and scopes (<code>openid email profile</code>).</li>
+      <li><strong>Authorization code flow</strong>: The page opens a popup to that URL. After the user signs in, Google redirects the popup to your `redirect_uri` with <code>?code=AUTH_CODE</code>. Because this page runs at the same origin as the redirect URI, it can read the popup location and extract the code.</li>
+      <li><strong>How to use the code in Laravel</strong>: Copy the shown code and POST it to your server endpoint (example below). The server exchanges it for tokens at Google's token endpoint.</li>
+      <li><strong>How to exchange the code for id_token</strong>: Server calls <code>POST https://oauth2.googleapis.com/token</code> with <code>code, client_id, client_secret, redirect_uri, grant_type=authorization_code</code>. Google returns <code>id_token</code> (JWT) and <code>access_token</code>.</li>
+    </ol>
+
+    <h3>Postman example</h3>
+    <pre>{
+  "url": "POST http://127.0.0.1:8000/api/auth/google/exchange",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "code": "PASTE_AUTH_CODE_HERE",
+    "redirect_uri": "http://127.0.0.1:8000/google-callback"
+  }
+}</pre>
+
+    <h3>Laravel callback route example</h3>
+    <pre>use Illuminate\Http\Request;
+
+Route::get('/google-callback', function (Request $request) {
+    // This route receives the authorization code from Google.
+    // For testing we simply return JSON containing the code.
+    return response()->json([
+        'code' => $request->query('code'),
+        'error' => $request->query('error')
+    ]);
+});</pre>
+
+  </div>
+
+<script>
+/*
+  Configuration:
+  - CLIENT_ID: your Google OAuth client id (web application)
+  - REDIRECT_URI: must match the redirect URI registered in Google Console
+*/
+const CLIENT_ID = '873211749728-063aug825svluufe54loqoidomag2bo7.apps.googleusercontent.com';
+const REDIRECT_URI = 'http://127.0.0.1:8000/google-callback';
+
+/*
+  Build the OAuth2 authorization URL:
+  - response_type=code to request an authorization code
+  - scope includes 'openid' so Google returns an id_token after exchange
+  - prompt=consent forces show of consent screen (useful for testing)
+*/
+function buildAuthUrl() {
+  const base = 'https://accounts.google.com/o/oauth2/v2/auth';
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
+    scope: 'openid email profile',
+    prompt: 'consent',     // forces selecting account and consent (remove in prod if not needed)
+    access_type: 'offline' // if you need refresh_token (server-side)
+  });
+  return `${base}?${params.toString()}`;
+}
+
+const loginBtn = document.getElementById('loginBtn');
+const copyBtn = document.getElementById('copyBtn');
+const codeDisplay = document.getElementById('codeDisplay');
+const statusEl = document.getElementById('status');
+
+let latestCode = null;
+
+loginBtn.addEventListener('click', () => {
+  const url = buildAuthUrl();
+  // open popup - sized window for consent
+  const popup = window.open(url, 'google_oauth_popup', 'width=500,height=650');
+
+  if (!popup) {
+    alert('Popup blocked. Please allow popups for this site.');
+    return;
+  }
+
+  statusEl.textContent = 'Status: waiting for user to complete Google sign-in...';
+
+  // Poll the popup window for when it redirects to our redirect URI.
+  // This polling will throw cross-origin exceptions until popup navigates to same origin.
+  const interval = setInterval(() => {
+    try {
+      // When popup is redirected to our redirect URI (same origin), we can access its location.
+      if (!popup || popup.closed) {
+        clearInterval(interval);
+        statusEl.textContent = 'Status: popup closed before completion.';
+        return;
+      }
+
+      // Only try to read location when origins match to avoid cross-origin error.
+      const popupOrigin = new URL(popup.location.href).origin;
+      if (popupOrigin === window.location.origin) {
+        // popup is now on same origin (e.g. http://127.0.0.1:8000/google-callback)
+        const params = new URL(popup.location.href).searchParams;
+        const code = params.get('code');
+        const error = params.get('error');
+
+        if (error) {
+          statusEl.textContent = 'Status: returned error from Google: ' + error;
+        }
+
+        if (code) {
+          latestCode = code;
+          codeDisplay.textContent = code;
+          console.log('Authorization code:', code);
+          statusEl.textContent = 'Status: code received.';
+          copyBtn.disabled = false;
+          // close popup after success
+          popup.close();
+          clearInterval(interval);
+        } else {
+          statusEl.textContent = 'Status: redirected but no code found.';
+        }
+      }
+    } catch (err) {
+      // cross-origin access while popup is on google.com - ignore until redirect occurs
+      // console.log('polling error', err);
+    }
+  }, 500);
+});
+
+copyBtn.addEventListener('click', async () => {
+  if (!latestCode) return;
+  try {
+    await navigator.clipboard.writeText(latestCode);
+    copyBtn.textContent = 'Copied!';
+    setTimeout(() => copyBtn.textContent = 'Copy Code', 1500);
+  } catch (e) {
+    alert('Copy failed: ' + e);
+  }
+});
+
+/*
+  Important:
+  - To make this work locally, serve this file via Laravel (e.g. put in `public/`) and open:
+    http://127.0.0.1:8000/google-oauth-test.html
+
+  - After obtaining the code, POST it to your Laravel server endpoint to exchange it:
+    POST http://127.0.0.1:8000/api/auth/google/exchange
+    Body (JSON): { "code": "PASTE_AUTH_CODE_HERE", "redirect_uri": "http://127.0.0.1:8000/google-callback" }
+
+  - Server-side exchange example (what the Laravel endpoint should do):
+    POST https://oauth2.googleapis.com/token
+    form params:
+      - code (the authorization code)
+      - client_id
+      - client_secret
+      - redirect_uri
+      - grant_type=authorization_code
+
+    Google returns JSON with: access_token, expires_in, id_token, refresh_token (if requested), scope, token_type
+    The server should verify id_token (JWT) and extract the user's email/name.
+*/
+</script>
+</body>
+</html>
