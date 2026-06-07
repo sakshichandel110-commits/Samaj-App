@@ -26,8 +26,7 @@ class RegistrationController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'status' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()->messages()
+                'message' => 'Validation failed'
             ], 200);
         }
 
@@ -39,8 +38,7 @@ class RegistrationController extends Controller
             if ($validator->fails()) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()->messages()
+                    'message' => 'Validation failed'
                 ], 200);
             }
 
@@ -50,7 +48,8 @@ class RegistrationController extends Controller
                 ['mobile' => $request->mobile],
                 [
                     'otp' => $otp,
-                    'expires_at' => now()->addMinutes(5)
+                    'expires_at' => now()->addMinutes(5),
+                    'user_type' => $request->user_type ?? null,
                 ]
             );
 
@@ -71,8 +70,7 @@ class RegistrationController extends Controller
             if ($validator->fails()) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()->messages()
+                    'message' => 'Validation failed'
                 ], 200);
             }
 
@@ -134,13 +132,12 @@ class RegistrationController extends Controller
             'mobile' => 'required',
             'otp' => 'required'
         ]);
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()->messages()
-            ], 200);
-        }
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Validation failed'
+                ], 200);
+            }
 
         $otpData = OtpVerification::where(
             'mobile',
@@ -171,7 +168,8 @@ class RegistrationController extends Controller
         })->first();
 
         if (!$user) {
-            $data = ['user_type' => 'member'];
+            $requestedType = $otpData->user_type ?? 'member';
+            $data = ['user_type' => $requestedType];
             if (Schema::hasColumn('users', 'mobile')) {
                 $data['mobile'] = $request->mobile;
             }
@@ -211,8 +209,7 @@ class RegistrationController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'status' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()->messages()
+                'message' => 'Validation failed'
             ], 200);
         }
 
@@ -335,21 +332,7 @@ class RegistrationController extends Controller
     {
         $user = $request->user();
 
-        // If client requested only to view profile, return it
-        if ($request->has('profile_view') && intval($request->input('profile_view')) === 1) {
-            $u = $user->toArray();
-            if (!empty($u['profile_image'])) {
-                $u['profile_image_url'] = asset('storage/' . $u['profile_image']);
-            } else {
-                $u['profile_image_url'] = null;
-            }
-
-            return response()->json([
-                'status' => true,
-                'message' => 'profile fetched',
-                'user' => $u
-            ]);
-        }
+        // Update-only API: remove profile_view functionality — always update provided fields
 
         // Validate incoming profile fields; return 200 with errors if validation fails
         $validator = Validator::make($request->all(), [
@@ -361,21 +344,36 @@ class RegistrationController extends Controller
             'bio' => 'nullable|string|max:2000',
             'education' => 'nullable|string|max:1000',
             // allow other custom fields like social links
-            'website' => 'nullable|url'
+            'website' => 'nullable|url',
+            // new fields
+            'profession_designation' => 'nullable|string|max:191',
+            'business' => 'nullable|array',
+            'business.*.title' => 'nullable|string|max:191',
+            'business.*.description' => 'nullable|string',
+            'business.*.contact_info' => 'nullable|string|max:500',
+            'business.*.weblink' => 'nullable|url',
+            'business.*.images' => 'nullable|array',
+            'business.*.images.*' => 'nullable|url'
         ]);
         if ($validator->fails()) {
             return response()->json([
                 'status' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()->messages()
+                'message' => 'Validation failed'
             ], 200);
         }
 
         $data = [];
-        foreach (['name', 'dob', 'address', 'bio', 'education', 'website'] as $f) {
+        foreach (['name', 'dob', 'address', 'bio', 'education', 'website', 'profession_designation'] as $f) {
             if ($request->has($f)) {
                 $data[$f] = $request->input($f);
             }
+        }
+
+        // handle business array if provided and users table has the column
+        if ($request->has('business') && Schema::hasColumn('users', 'business')) {
+            $biz = $request->input('business');
+            // ensure it's stored as JSON
+            $data['business'] = is_array($biz) ? json_encode($biz) : $biz;
         }
 
         
