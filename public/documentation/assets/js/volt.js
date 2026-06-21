@@ -1096,7 +1096,7 @@ d.addEventListener("DOMContentLoaded", function (event) {
     */
 
     var config = {
-        mapboxToken: 'pk.eyJ1Ijoiem9sdGFudGhlbWVzYmVyZyIsImEiOiJjazZqaWUwcWswYTBvM21td2Jmcm5mYmdyIn0.7_5YCbbOFRnvqZzCNDo9fw',
+        mapboxToken: 'YOUR_MAPBOX_TOKEN_HERE',
         mapboxId: 'mapbox/light-v10'
     };
 
@@ -1152,7 +1152,6 @@ d.addEventListener("DOMContentLoaded", function (event) {
             attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
             maxZoom: 18,
             id: config.mapboxId,
-            accessToken: config.mapboxToken
         }).addTo(mapListings);
 
         listings.map(function (listing, index) {
