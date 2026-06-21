@@ -11,8 +11,8 @@ class CreateAnnouncementReactionsTable extends Migration
         if (!Schema::hasTable('announcement_reactions')) {
         Schema::create('announcement_reactions', function (Blueprint $table) {
             $table->id();
-            $table->unsignedInteger('user_id');
-            $table->unsignedInteger('announcement_id');
+            $table->foreignId('user_id');
+            $table->foreignId('announcement_id');
             $table->boolean('liked')->default(false);
             $table->boolean('shared')->default(false);
             $table->timestamps();

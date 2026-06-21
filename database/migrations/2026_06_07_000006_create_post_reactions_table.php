@@ -11,8 +11,8 @@ class CreatePostReactionsTable extends Migration
         if (!Schema::hasTable('post_reactions')) {
         Schema::create('post_reactions', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id');
-            $table->unsignedBigInteger('post_id');
+            $table->unsignedInteger('user_id');
+            $table->unsignedInteger('post_id');
             $table->boolean('liked')->default(false);
             $table->boolean('shared')->default(false);
             $table->timestamps();
