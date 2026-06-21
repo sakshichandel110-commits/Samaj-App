@@ -127,27 +127,17 @@ class AdminController extends Controller
 			}
 
 			$user = User::find($userId);
-			if (! $user) {
-				// Only show pending users that belong to the same community as the admin
-				$adminCommunityId = $admin->community_id ?? null;
-				if (empty($adminCommunityId)) {
-					// admin not assigned to any community -> return empty list
-					return response()->json(['status' => true, 'message' => 'Pending users fetched', 'data' => []], 200);
-				}
-
-				$pending = User::where('status', 'pending')
-					->where('community_id', $adminCommunityId)
-					->get();
-				$result = $pending->map(function ($u) {
-					return $u->fullDetails();
-				})->all();
-
-				return response()->json(['status' => true, 'message' => 'Pending users fetched', 'data' => $result], 200);
-			if ($s === 'reject') $s = 'rejected';
-
-			$user->status = $s;
-			$user->save();
-
-			return response()->json(['status' => true, 'message' => 'User status updated', 'data' => $user->fullDetails()], 200);
+		if (! $user) {
+			return response()->json(['status' => false, 'message' => 'User not found'], 404);
 		}
+
+		$s = strtolower($status);
+		if ($s === 'accept') $s = 'accepted';
+		if ($s === 'reject') $s = 'rejected';
+
+		$user->status = $s;
+		$user->save();
+
+		return response()->json(['status' => true, 'message' => 'User status updated', 'data' => $user->fullDetails()], 200);
+	}
 }
