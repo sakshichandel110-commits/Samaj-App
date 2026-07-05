@@ -146,10 +146,16 @@
           <a class="nav-link dropdown-toggle pt-1 px-0" href="#" role="button" data-bs-toggle="dropdown"
             aria-expanded="false">
             <div class="media d-flex align-items-center">
-              <img class="avatar rounded-circle" alt="Image placeholder" src="/assets/img/team/profile-picture-1.jpg">
+              @if(auth()->user()->profile_image)
+                <img class="avatar rounded-circle" alt="Image placeholder" src="{{ asset('storage/' . auth()->user()->profile_image) }}">
+              @else
+                <div class="avatar rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold" style="width: 32px; height: 32px; font-size: 14px;">
+                  {{ strtoupper(substr(auth()->user()->name ?? 'A', 0, 1)) }}
+                </div>
+              @endif
               <div class="media-body ms-2 text-dark align-items-center d-none d-lg-block">
                 <span
-                  class="mb-0 font-small fw-bold text-gray-900">{{  auth()->user()->first_name ? auth()->user()->first_name . ' ' . auth()->user()->last_name : 'User Name'}}</span>
+                  class="mb-0 font-small fw-bold text-gray-900">{{ auth()->user()->name ?? 'User Name' }}</span>
               </div>
             </div>
           </a>

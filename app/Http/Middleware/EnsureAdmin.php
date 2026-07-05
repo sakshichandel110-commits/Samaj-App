@@ -28,7 +28,8 @@ class EnsureAdmin
         }
 
         // Logged in but not admin → hard 403, no redirect (prevents redirect loops)
-        if (strtolower($user->user_type ?? '') !== 'admin') {
+        $allowedAdmins = ['admin', 'super_admin', 'sub_admin'];
+        if (! in_array(strtolower($user->user_type ?? ''), $allowedAdmins)) {
             if ($request->expectsJson()) {
                 return response()->json(['status' => false, 'message' => 'Unauthorized. Admin access only.'], 403);
             }

@@ -104,7 +104,8 @@ class AdminController extends Controller
     public function verifyMember(Request $request)
 		{
 			$admin = $request->user();
-			if (! $admin || strtolower(($admin->user_type ?? '')) !== 'admin') {
+			$allowedAdmins = ['admin', 'super_admin', 'sub_admin'];
+			if (! $admin || ! in_array(strtolower($admin->user_type ?? ''), $allowedAdmins)) {
 				return response()->json(['status' => false, 'message' => 'Unauthorized. Only admin users can perform this action.'], 403);
 			}
 
@@ -139,5 +140,40 @@ class AdminController extends Controller
 		$user->save();
 
 		return response()->json(['status' => true, 'message' => 'User status updated', 'data' => $user->fullDetails()], 200);
+	}
+
+	/**
+	 * Assign admin or other roles to an existing member in the same community.
+	 */
+	public function assignRole(Request $request)
+	{
+		$admin = $request->user();
+		$adminType = strtolower($admin->user_type ?? '');
+
+		// Only super_admin or admin can assign roles
+		if (! in_array($adminType, ['admin', 'super_admin'])) {
+			return response()->json(['status' => false, 'message' => 'Unauthorized. Only admins can perform this action.'], 403);
+		}
+
+		$request->validate([
+			'user_id' => 'required|integer|exists:users,id',
+			'role'    => 'required|string|in:admin,sub_admin,super_admin,user,member'
+		]);
+
+		$targetUser = User::find($request->user_id);
+
+		// Ensure target user belongs to the same community
+		if ($targetUser->community_id !== $admin->community_id) {
+			return response()->json(['status' => false, 'message' => 'User does not belong to your community'], 403);
+		}
+
+		$targetUser->user_type = $request->role;
+		$targetUser->save();
+
+		return response()->json([
+			'status' => true,
+			'message' => 'Role updated successfully',
+			'data' => $targetUser->fullDetails()
+		], 200);
 	}
 }

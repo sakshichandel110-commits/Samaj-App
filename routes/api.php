@@ -50,3 +50,6 @@ Route::get('/announcements/list', [MemberController::class, 'listAnnouncements']
 // Admin verification for members
 Route::post('/admin/verify-member', [AdminController::class, 'verifyMember'])->middleware(['auth:sanctum','admin']);
 
+// Assign roles (admin, sub_admin) to existing members
+Route::post('/admin/assign-role', [AdminController::class, 'assignRole'])->middleware(['auth:sanctum','admin']);
+
